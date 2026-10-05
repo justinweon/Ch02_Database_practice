@@ -1,0 +1,14 @@
+[project]
+name = "shopping-mall-db-revision"
+version = "0.1.0"
+description = "PostgreSQL 및 Supabase 기반 쇼핑몰 DB 객체 관리 및 트랜잭션 정합성 제어 프로젝트"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "supabase>=2.30.0",
+    "python-dotenv>=1.0.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"
