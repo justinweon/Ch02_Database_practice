@@ -39,6 +39,7 @@ class ProductService:
             self.supabase.table("products")
             .select("*")
             .eq("id",product_id)
+            .is_("deleted_at", "null")
             .maybe_single()
         ).execute()
         return response.data
@@ -54,6 +55,8 @@ class ProductService:
 
     def update_product(self, product_id, name=None, price=None, description=None):
         profile = self.get_current_profile()
+        if profile is None:
+            raise PermissionError("로그인이 필요합니다.")        
 
         product = self.get_product(product_id)
 
@@ -74,6 +77,9 @@ class ProductService:
         if description is not None:
             update_data["description"] = description
 
+        if not update_data:
+            raise ValueError("수정할 값이 없습니다.")
+        
         response = (
             self.supabase.table("products")
             .update(update_data)
@@ -84,6 +90,9 @@ class ProductService:
 
     def delete_product(self, product_id):
         profile = self.get_current_profile()
+        if profile is None:
+            raise PermissionError("로그인이 필요합니다.")
+                
         product = self.get_product(product_id)
 
         if product is None:
@@ -95,7 +104,7 @@ class ProductService:
         response = (
             self.supabase.table("products")
             .update({
-                "deleted_at": datetime.now().isoformat()
+                "deleted_at": datetime.now(timezone.utc).isoformat()
             })
         .eq("id", product_id)
         .execute()
