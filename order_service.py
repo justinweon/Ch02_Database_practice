@@ -13,59 +13,6 @@ class OrderService:
 
         return profile is not None and profile["role"] == "buyer"
 
-    def create_order(self, product_id, quantity):
-        profile = self.get_current_profile()
-
-        if not self.is_buyer():
-            raise PermissionError ("구매자만 주문할 수 있습니다")
-
-        if quantity <=0:
-            raise ValueError ("주문 수량은 1개 이상이어야 합니다.")
-
-        product_response = (
-            self.supabase.table("products")
-            .select("*")
-            .eq("id", product_id)
-            .is_("deleted_at", "null")
-            .maybe_single()
-            .execute()
-        )
-        product = product_response.data
-
-        if product is None:
-            raise ValueError ("상품을 찾지 못했습니다.")
-
-        total_amount = product["price"] * quantity
-
-        order_response = (
-            self.supabase.table("orders")
-            .insert({
-                "buyer_id":profile["id"],
-                "status":"pending",
-                "total_amount": total_amount
-
-            }).execute()
-        )
-
-        created_order = order_response.data[0]
-
-        order_item_response = (
-            self.supabase.table("order_items")
-            .insert({
-                "order_id": created_order["id"],
-                "product_id":product["id"],
-                "quantity":quantity,
-                "unit_price": product["price"]
-            }).execute()
-        )
-
-        created_order_item = order_item_response.data[0]
-
-        return{
-            "order":created_order,
-            "order_item":created_order_item
-        }
-
     def get_my_orders(self):
         profile = self.get_current_profile()
 
@@ -83,35 +30,15 @@ class OrderService:
         return response.data
 
     def cancel_order(self, order_id):
-        profile = self.get_current_profile()
-
         if not self.is_buyer():
-            raise PermissionError ("구매자만 주문을 취소할 수 있습니다.")
+            raise PermissionError("구매자만 주문을 취소할 수 있습니다.")
 
-        order_response = (
-            self.supabase.table("orders")
-            .select("*")
-            .eq("id", order_id)
-            .eq("buyer_id", profile["id"])
-            .maybe_single()
-            .execute()
-        )
-
-        order = order_response.data
-
-        if order is None:
-            raise ValueError ("주문을 찾을 수 없습니다.")
-
-        if order["status"] != "pending":
-            raise ValueError ("pending 상태의 주문만 취소할 수 있습니다.")
-
-        response = (
-            self.supabase.table("orders")
-            .update({"status": "cancelled"})
-            .eq("id", order_id)
-            .execute()
-        )
-        return response.data[0]
+        # 취소 + 재고 복구를 DB 함수(RPC)가 한 트랜잭션으로 처리
+        response = self.supabase.rpc(
+            "cancel_order_transaction",
+            {"p_order_id": str(order_id)}
+        ).execute()
+        return response.data   # {'success': True, 'order_id': ..., 'status': 'cancelled'}
 
     def get_orders_for_my_products(self):
         profile = self.get_current_profile()
